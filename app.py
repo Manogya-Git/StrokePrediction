@@ -1,24 +1,24 @@
 from pathlib import Path
-import pickle
+import joblib
 import streamlit as st
-import numpy as np
 import pandas as pd
 
-model_path = Path(__file__).parent / "stroke_logistic_model.pkl"
-print("Looking for model at:", model_path)
+# -------------------------------
+# Load model ONCE (CRITICAL FIX)
+# -------------------------------
+@st.cache_resource
+def load_model():
+    model_path = Path(__file__).parent / "stroke_logistic_model.joblib"
+    data = joblib.load(model_path)
+    return data["model"], data["scaler"]
 
-with open(model_path, "rb") as f:
-    data = pickle.load(f)
+model, scaler = load_model()
 
-print("Model loaded successfully!")
-
-model = data["model"]
-scaler = data["scaler"]
-
-
-st.title(" Stroke Prediction System")
+# -------------------------------
+# UI
+# -------------------------------
+st.title("Stroke Prediction System")
 st.write("Enter patient details to predict stroke risk")
-
 
 age = st.number_input("Age", min_value=0, max_value=120, value=30)
 hypertension = st.selectbox("Hypertension", ["No", "Yes"])
@@ -38,10 +38,10 @@ smoking_status = st.selectbox(
     ["formerly smoked", "never smoked", "smokes"]
 )
 
-
+# -------------------------------
+# Prediction
+# -------------------------------
 if st.button("Predict Stroke"):
-
-
     input_data = {
         "age": age,
         "hypertension": 1 if hypertension == "Yes" else 0,
@@ -50,32 +50,23 @@ if st.button("Predict Stroke"):
         "avg_glucose_level": avg_glucose_level,
         "bmi": bmi,
 
-
         "gender_Male": 1 if gender == "Male" else 0,
         "gender_Other": 1 if gender == "Other" else 0,
-
 
         "work_type_Never_worked": 1 if work_type == "Never_worked" else 0,
         "work_type_Private": 1 if work_type == "Private" else 0,
         "work_type_Self-employed": 1 if work_type == "Self-employed" else 0,
         "work_type_children": 1 if work_type == "children" else 0,
 
-
         "Residence_type_Urban": 1 if residence_type == "Urban" else 0,
-
 
         "smoking_status_formerly smoked": 1 if smoking_status == "formerly smoked" else 0,
         "smoking_status_never smoked": 1 if smoking_status == "never smoked" else 0,
         "smoking_status_smokes": 1 if smoking_status == "smokes" else 0
     }
 
-
     input_df = pd.DataFrame([input_data])
-
-
     input_scaled = scaler.transform(input_df)
-
-
     prediction = model.predict(input_scaled)
 
     if prediction[0] == 1:

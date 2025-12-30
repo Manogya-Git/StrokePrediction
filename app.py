@@ -1,47 +1,24 @@
-from pathlib import Path
 import joblib
-import streamlit as st
 import pandas as pd
+import gradio as gr
+from pathlib import Path
 
 # -------------------------------
-# Load model ONCE (CRITICAL FIX)
+# Load model ONCE
 # -------------------------------
-@st.cache_resource
-def load_model():
-    model_path = Path(__file__).parent / "stroke_logistic_model.joblib"
-    data = joblib.load(model_path)
-    return data["model"], data["scaler"]
+model_path = Path(__file__).parent / "stroke_logistic_model.joblib"
+data = joblib.load(model_path)
 
-model, scaler = load_model()
+model = data["model"]
+scaler = data["scaler"]
 
 # -------------------------------
-# UI
+# Prediction function
 # -------------------------------
-st.title("Stroke Prediction System")
-st.write("Enter patient details to predict stroke risk")
-
-age = st.number_input("Age", min_value=0, max_value=120, value=30)
-hypertension = st.selectbox("Hypertension", ["No", "Yes"])
-heart_disease = st.selectbox("Heart Disease", ["No", "Yes"])
-avg_glucose_level = st.number_input("Average Glucose Level", min_value=0.0, value=100.0)
-bmi = st.number_input("BMI", min_value=0.0, value=25.0)
-
-gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-ever_married = st.selectbox("Ever Married", ["No", "Yes"])
-work_type = st.selectbox(
-    "Work Type",
-    ["Private", "Self-employed", "children", "Never_worked"]
-)
-residence_type = st.selectbox("Residence Type", ["Urban", "Rural"])
-smoking_status = st.selectbox(
-    "Smoking Status",
-    ["formerly smoked", "never smoked", "smokes"]
-)
-
-# -------------------------------
-# Prediction
-# -------------------------------
-if st.button("Predict Stroke"):
+def predict_stroke(
+    age, hypertension, heart_disease, avg_glucose_level, bmi,
+    gender, ever_married, work_type, residence_type, smoking_status
+):
     input_data = {
         "age": age,
         "hypertension": 1 if hypertension == "Yes" else 0,
@@ -67,9 +44,38 @@ if st.button("Predict Stroke"):
 
     input_df = pd.DataFrame([input_data])
     input_scaled = scaler.transform(input_df)
-    prediction = model.predict(input_scaled)
+    prediction = model.predict(input_scaled)[0]
 
-    if prediction[0] == 1:
-        st.error("⚠️ High Risk of Stroke")
-    else:
-        st.success("✅ Low Risk of Stroke")
+    return "⚠️ High Risk of Stroke" if prediction == 1 else "✅ Low Risk of Stroke"
+
+# -------------------------------
+# Gradio UI
+# -------------------------------
+app = gr.Interface(
+    fn=predict_stroke,
+    inputs=[
+        gr.Number(label="Age", value=30),
+        gr.Radio(["No", "Yes"], label="Hypertension"),
+        gr.Radio(["No", "Yes"], label="Heart Disease"),
+        gr.Number(label="Average Glucose Level", value=100),
+        gr.Number(label="BMI", value=25),
+
+        gr.Radio(["Male", "Female", "Other"], label="Gender"),
+        gr.Radio(["No", "Yes"], label="Ever Married"),
+        gr.Dropdown(
+            ["Private", "Self-employed", "children", "Never_worked"],
+            label="Work Type"
+        ),
+        gr.Radio(["Urban", "Rural"], label="Residence Type"),
+        gr.Dropdown(
+            ["formerly smoked", "never smoked", "smokes"],
+            label="Smoking Status"
+        ),
+    ],
+    outputs=gr.Textbox(label="Prediction"),
+    title="Stroke Prediction System",
+    description="Enter patient details to predict stroke risk"
+)
+
+if __name__ == "__main__":
+    app.launch()
